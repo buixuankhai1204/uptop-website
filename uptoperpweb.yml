@@ -1,0 +1,60 @@
+#sudo ansible-playbook -i inventory.ini uptoperpweb.yml
+
+- name: Build Docker image for SvelteKit project
+  hosts: localhost
+  gather_facts: no  
+
+  tasks:
+    - name: Build Docker image
+      command: sudo docker build -t uptoperpweb /home/manhlong/uptoperpweb
+      become: yes
+      become_user: root
+      become_method: sudo
+      vars:
+        ansible_become_password: Cubeo2010
+
+    - name: Build Docker image .tar file
+      command: sudo docker save -o /home/manhlong/uptoperpweb/uptoperpweb.tar uptoperpweb:latest
+      become: yes
+      become_user: root
+      become_method: sudo
+      vars:
+        ansible_become_password: Cubeo2010
+
+- name: Copy Docker image to remote server
+  hosts: vtvms-02
+  gather_facts: false
+
+  vars:
+    ansible_ssh_user: manhlong
+    ansible_ssh_pass: KtYka}^+g~49]d7K>3m!r18
+    ansible_become: true
+    ansible_become_method: sudo
+    ansible_become_pass: KtYka}^+g~49]d7K>3m!r18
+
+  tasks:
+    - name: Ensure /home/manhlong/docker-images directory exists
+      file:
+        path: /home/manhlong/docker-images
+        state: directory
+        owner: manhlong
+        group: manhlong
+        mode: '0755'
+
+    - name: Transfer Docker image to remote server
+      ansible.builtin.copy:
+        src: /home/manhlong/uptoperpweb/uptoperpweb.tar
+        dest: /home/manhlong/docker-images/uptoperpweb.tar
+
+    - name: Stop and remove existing Docker container if exists
+      ignore_errors: yes
+      become: yes
+      shell: sudo docker stop uptoperpweb && sudo docker rm uptoperpweb && sudo docker rmi uptoperpweb
+
+    - name: Load Docker image on remote server
+      command: sudo docker load -i /home/manhlong/docker-images/uptoperpweb.tar
+      become: yes			
+
+    - name: Run new Docker container on remote server
+      command: sudo docker run --restart=always -d --name uptoperpweb -p 8080:8080 uptoperpweb
+      become: yes
